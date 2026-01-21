@@ -16,4 +16,6 @@ The project is created with following technologies;
 * React 19.2
 * Tailwind CSS 4.1
 * Express 5.2
+* MongoDB 7
+* Mongoose 9.1
 And written using Typescript as a leading language.
