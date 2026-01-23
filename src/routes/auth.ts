@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import User, { Faction } from '../models/User';
+import { AuthRequest, verifyToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -113,6 +114,103 @@ router.post('/register', async (req: Request<{}, {}, RegisterBody>, res: Respons
     res.status(500).json({
       success: false,
       message: 'Błąd serwera podczas rejestracji'
+    });
+  }
+});
+
+//POST /api/auth/login
+
+interface LoginBody {
+    email: string;
+    password: string;
+}
+
+router.post('/login', async (req: Request<{}, {}, LoginBody>, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email i hasło są wymagane'
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Nieprawidłowy email lub hasło'
+      });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Nieprawidłowy email lub hasło'
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        username: user.username,
+        faction: user.faction
+      },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Zalogowano pomyślnie',
+      data: {
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          faction: user.faction,
+          resources: user.resources,
+          createdAt: user.createdAt
+        },
+        token
+      }
+    });
+
+  } catch (error) {
+    console.error('Błąd logowania:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Błąd serwera podczas logowania'
+    });
+  }
+});
+
+// Test GET /api/auth/me
+router.get('/me', verifyToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await User.findById(req.user?.userId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Użytkownik nie znaleziony'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { user }
+    });
+
+  } catch (error) {
+    console.error('Błąd pobierania użytkownika:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Błąd serwera'
     });
   }
 });
