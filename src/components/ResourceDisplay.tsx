@@ -1,6 +1,5 @@
 import React from 'react';
 import { Resources, MiningBonus } from '../services/api';
-import '../assets'
 
 const ironIcon = require('../assets/iron.png');
 const rareMetalsIcon = require('../assets/rare_metals.png');

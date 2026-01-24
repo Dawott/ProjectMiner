@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { resourcesAPI, Resources, MiningBonus } from '../services/api';
+import { resourcesAPI, Resources, MiningBonus, FleetStats, shipsAPI } from '../services/api';
 import ResourceDisplay from '../components/ResourceDisplay';
+import ShipTemplateList from '../components/ShipTemplateList';
+import PlayerFleet from '../components/PlayerFleet';
+
+type TabType = 'overview' | 'shipyard' | 'fleet' | 'missions' | 'mines';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -17,6 +21,15 @@ const Dashboard: React.FC = () => {
   const fleetIcon = require('../assets/fleet.png');
 const missionIcon = require('../assets/mission.png');
 const minesIcon = require('../assets/mines.png');
+const overviewIcon = require('../assets/overview.png');
+const shipyardIcon = require('../assets/shipyard.png');
+
+// Aktywna zakładka
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+  const [fleetStats, setFleetStats] = useState<FleetStats | null>(null);
+
+  const [fleetRefreshTrigger, setFleetRefreshTrigger] = useState(0);
 
   // Funkcja pobierająca zasoby
   const fetchResources = useCallback(async () => {
@@ -38,10 +51,31 @@ const minesIcon = require('../assets/mines.png');
     }
   }, []);
 
+  const fetchFleetStats = useCallback(async () => {
+    try {
+      const response = await shipsAPI.getFleet();
+      setFleetStats(response.data.data.stats);
+    } catch (err) {
+      console.error('Błąd pobierania statystyk floty:', err);
+    }
+  }, []);
+
   // Pobierz zasoby przy montowaniu komponentu
   useEffect(() => {
     fetchResources();
-  }, [fetchResources]);
+    fetchFleetStats();
+  }, [fetchResources, fetchFleetStats]);
+
+const handleShipBuilt = () => {
+    fetchResources();
+    fetchFleetStats();
+    setFleetRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleFleetChange = () => {
+    fetchResources();
+    fetchFleetStats();
+  };
 
   // Mapowanie nazw frakcji na polski
   const factionNames: Record<string, string> = {
@@ -50,6 +84,15 @@ const minesIcon = require('../assets/mines.png');
     'USA': 'USA',
     'JAPONIA': 'Japonia'
   };
+
+   const tabs: { id: TabType; name: string; icon: any; disabled?: boolean }[] = [
+    { id: 'overview', name: 'Przegląd', icon: <img src={overviewIcon} />},
+    { id: 'shipyard', name: 'Stocznia', icon: <img src={shipyardIcon} /> },
+    { id: 'fleet', name: 'Flota', icon: <img src={fleetIcon} /> },
+    { id: 'missions', name: 'Misje', icon: <img src={missionIcon} />, disabled: true },
+    { id: 'mines', name: 'Kopalnie', icon: <img src={minesIcon} />, disabled: true }
+  ];
+
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -79,6 +122,32 @@ const minesIcon = require('../assets/mines.png');
         </div>
       </header>
 
+      {/* Nawigacja zakładkami */}
+      <nav className="bg-gray-800/50 border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex gap-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => !tab.disabled && setActiveTab(tab.id)}
+                disabled={tab.disabled}
+                className={`px-4 py-3 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-400'
+                    : tab.disabled
+                      ? 'border-transparent text-gray-600 cursor-not-allowed'
+                      : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
+                }`}
+              >
+                <img src={tab.icon} alt="" className="w-5 h-5 opacity-70" />
+                {tab.name}
+                {tab.disabled && <span className="text-xs text-gray-600">(wkrótce)</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      </nav>
+
       {/* Main content */}
       <main className="p-6 max-w-7xl mx-auto">
         {/* Błąd */}
@@ -105,27 +174,43 @@ const minesIcon = require('../assets/mines.png');
           ) : null}
         </section>
 
+        {/*Zakładka */}
+          {activeTab === 'overview' && (
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Statki */}
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span><img src={fleetIcon} /></span> Twoje statki
+              <span><img src={fleetIcon} alt="" className="w-6 h-6" /></span> Twoja flota
             </h3>
-            <p className="text-gray-400 text-sm">
-              Brak statków. Zbuduj swój pierwszy statek w stoczni!
-            </p>
-            <button 
-              disabled
-              className="mt-4 w-full py-2 bg-gray-700 text-gray-500 rounded-lg cursor-not-allowed"
-            >
-              Stocznia (wkrótce)
-            </button>
-          </div>
+            {fleetStats && fleetStats.totalShips > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-gray-300">
+                    Posiadasz <span className="text-white font-bold">{fleetStats.totalShips}</span> statków
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Gotowe: {fleetStats.idleShips} | Na misjach: {fleetStats.onMissionShips}
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Łączna ładowność: {fleetStats.totalCargoCapacity}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm">
+                  Brak statków. Zbuduj swój pierwszy statek w stoczni!
+                </p>
+              )}
+              <button 
+                onClick={() => setActiveTab('fleet')}
+                className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                {fleetStats && fleetStats.totalShips > 0 ? 'Zarządzaj flotą' : 'Przejdź do stoczni'}
+              </button>
+            </div>
 
           {/* Misje */}
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span><img src={missionIcon} /></span> Aktywne misje
+              <img src={missionIcon} alt="" className="w-6 h-6" /> Aktywne misje
             </h3>
             <p className="text-gray-400 text-sm">
               Brak aktywnych misji. Wyślij statek na wyprawę wydobywczą!
@@ -141,7 +226,7 @@ const minesIcon = require('../assets/mines.png');
           {/* Kopalnie */}
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span><img src={minesIcon} /></span> Kopalnie
+              <img src={minesIcon} alt="" className="w-6 h-6" /> Kopalnie
             </h3>
             <p className="text-gray-400 text-sm">
               Brak kopalni. Zbuduj kopalnie na planetach aby pasywnie zbierać surowce!
@@ -154,6 +239,41 @@ const minesIcon = require('../assets/mines.png');
             </button>
           </div>
         </section>
+          )}
+
+          {activeTab === 'shipyard' && (
+          <section>
+            <ShipTemplateList 
+              playerResources={resources || undefined}
+              onShipBuilt={handleShipBuilt}
+            />
+          </section>
+        )}
+
+        {activeTab === 'fleet' && (
+          <section>
+            <PlayerFleet 
+              refreshTrigger={fleetRefreshTrigger}
+              onFleetChange={handleFleetChange}
+            />
+          </section>
+        )}
+
+         {activeTab === 'missions' && (
+          <section className="text-center py-12">
+             <img src={missionIcon} alt="" className="w-16 h-16 mx-auto opacity-50 mb-4" />
+            <h2 className="mt-4 text-xl font-semibold">System misji</h2>
+            <p className="text-gray-400 mt-2">Ta funkcja będzie dostępna wkrótce!</p>
+          </section>
+        )}
+
+        {activeTab === 'mines' && (
+          <section className="text-center py-12">
+            <img src={minesIcon} alt="" className="w-16 h-16 mx-auto opacity-50 mb-4" />
+            <h2 className="mt-4 text-xl font-semibold">System kopalni</h2>
+            <p className="text-gray-400 mt-2">Ta funkcja będzie dostępna wkrótce!</p>
+          </section>
+        )}
       </main>
     </div>
   );

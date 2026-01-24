@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { connectDB } from './config/database';
 import authRoutes from './routes/auth';
 import resourceRoutes from './routes/resources'
+import shipRoutes from './routes/ships';
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ connectDB();
 
 app.use('/api/auth', authRoutes);
 app.use('/api/resources', resourceRoutes);
+app.use('/api/ships', shipRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
