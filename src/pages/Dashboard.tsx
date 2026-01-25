@@ -6,6 +6,8 @@ import ShipTemplateList from '../components/ShipTemplateList';
 import PlayerFleet from '../components/PlayerFleet';
 import CelestialList from '../components/CelestialList';
 import { CelestialBody } from '../services/celestialAPI';
+import MissionList from '../components/MissionList';
+import missionAPI, { MissionStats } from '../services/missionAPI';
 
 type TabType = 'overview' | 'shipyard' | 'fleet' | 'galaxy' | 'missions' | 'mines';
 
@@ -27,13 +29,20 @@ const overviewIcon = require('../assets/overview.png');
 const shipyardIcon = require('../assets/shipyard.png');
 const planetIcon = require('../assets/planet.png'); 
 const planet2Icon = require('../assets/planet2.png'); 
+const extractIcon = require('../assets/extraction.png');
+const progressIcon = require('../assets/in_progress.png');
+const returnIcon = require('../assets/return.png');
+const finishIcon = require('../assets/finish.png');
+const receivedIcon = require('../assets/received.png');
 
 // Aktywna zakładka
   const [activeTab, setActiveTab] = useState<TabType>('overview');
 
   const [fleetStats, setFleetStats] = useState<FleetStats | null>(null);
+   const [missionStats, setMissionStats] = useState<MissionStats | null>(null);
 
   const [fleetRefreshTrigger, setFleetRefreshTrigger] = useState(0);
+   const [missionRefreshTrigger, setMissionRefreshTrigger] = useState(0);
 
   const [selectedTarget, setSelectedTarget] = useState<CelestialBody | null>(null);
 
@@ -66,6 +75,15 @@ const planet2Icon = require('../assets/planet2.png');
     }
   }, []);
 
+  const fetchMissionStats = useCallback(async () => {
+    try {
+      const response = await missionAPI.getAll(true);
+      setMissionStats(response.data.data.stats);
+    } catch (err) {
+      console.error('Błąd pobierania statystyk misji:', err);
+    }
+  }, []);
+
   // Pobierz zasoby przy montowaniu komponentu
   useEffect(() => {
     fetchResources();
@@ -83,12 +101,23 @@ const handleShipBuilt = () => {
     fetchFleetStats();
   };
 
+  const handleMissionComplete = () => {
+    fetchResources();
+    fetchFleetStats();
+    fetchMissionStats();
+    setFleetRefreshTrigger(prev => prev + 1);
+  };
+
   const handleSelectTarget = (body: CelestialBody) => {
     setSelectedTarget(body);
-    // TBD - misje i asteroidy
-    console.log('Wybrano cel:', body.name);
-
-    alert(`Wybrano: ${body.name}\n\nSystem misji będzie dostępny wkrótce!`);
+    
+    // Jeśli to asteroida, przejdź do zakładki misji
+    if (body.isTemporary) {
+      // TODO: Otwórz modal wysyłania misji
+      alert(`Wybrano asteroidę: ${body.name}\n\nAby wysłać misję, przejdź do zakładki "Misje" (funkcja w przygotowaniu)`);
+    } else {
+      alert(`Wybrano: ${body.name}\n\nSystem kopalni będzie dostępny wkrótce!`);
+    }
   };
 
   // Mapowanie nazw frakcji na polski
@@ -108,6 +137,9 @@ const handleShipBuilt = () => {
     { id: 'mines', name: 'Kopalnie', icon: <img src={minesIcon} />, disabled: true }
   ];
 
+  const activeMissionsCount = missionStats 
+    ? missionStats.inProgress + missionStats.mining + missionStats.returning 
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -245,19 +277,47 @@ const handleShipBuilt = () => {
 
           {/* Misje */}
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <img src={missionIcon} alt="" className="w-6 h-6" /> Aktywne misje
-            </h3>
-            <p className="text-gray-400 text-sm">
-              Brak aktywnych misji. Wyślij statek na wyprawę wydobywczą!
-            </p>
-            <button 
-              disabled
-              className="mt-4 w-full py-2 bg-gray-700 text-gray-500 rounded-lg cursor-not-allowed"
-            >
-              Centrum misji (wkrótce)
-            </button>
-          </div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <img src={missionIcon} alt="" className="w-6 h-6" /> Aktywne misje
+              </h3>
+              {missionStats && activeMissionsCount > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-gray-300">
+                    <span className="text-white font-bold">{activeMissionsCount}</span> aktywnych misji
+                  </p>
+                  <div className="text-gray-400 text-sm space-y-1">
+                    {missionStats.inProgress > 0 && (
+                      <p><img src={progressIcon} alt="" className="w-6 h-6" /> W drodze: {missionStats.inProgress}</p>
+                    )}
+                    {missionStats.mining > 0 && (
+                      <p><img src={extractIcon} alt="" className="w-6 h-6" /> Wydobycie: {missionStats.mining}</p>
+                    )}
+                    {missionStats.returning > 0 && (
+                      <p><img src={returnIcon} alt="" className="w-6 h-6" /> Powrót: {missionStats.returning}</p>
+                    )}
+                  </div>
+                  {missionStats.readyToCollect > 0 && (
+                    <p className="text-green-400 font-medium animate-pulse">
+                      <img src={finishIcon} alt="" className="w-6 h-6" /> {missionStats.readyToCollect} do odebrania!
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm">
+                  Brak aktywnych misji. Wyślij statek na asteroidę!
+                </p>
+              )}
+              <button 
+                onClick={() => setActiveTab('missions')}
+                className={`mt-4 w-full py-2 rounded-lg transition-colors ${
+                  missionStats?.readyToCollect 
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+              >
+                {missionStats?.readyToCollect ? 'Odbierz zasoby!' : 'Centrum misji'}
+              </button>
+            </div>
 
           {/* Kopalnie */}
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
@@ -304,10 +364,11 @@ const handleShipBuilt = () => {
         )}
 
          {activeTab === 'missions' && (
-          <section className="text-center py-12">
-             <img src={missionIcon} alt="" className="w-16 h-16 mx-auto opacity-50 mb-4" />
-            <h2 className="mt-4 text-xl font-semibold">System misji</h2>
-            <p className="text-gray-400 mt-2">Ta funkcja będzie dostępna wkrótce!</p>
+          <section>
+            <MissionList 
+              refreshTrigger={missionRefreshTrigger}
+              onMissionComplete={handleMissionComplete}
+            />
           </section>
         )}
 
