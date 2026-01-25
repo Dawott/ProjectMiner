@@ -7,6 +7,7 @@ import resourceRoutes from './routes/resources'
 import shipRoutes from './routes/ships';
 import celestialRoutes from './routes/celestial';
 
+
 dotenv.config();
 
 const app = express();

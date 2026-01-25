@@ -4,8 +4,10 @@ import { resourcesAPI, Resources, MiningBonus, FleetStats, shipsAPI } from '../s
 import ResourceDisplay from '../components/ResourceDisplay';
 import ShipTemplateList from '../components/ShipTemplateList';
 import PlayerFleet from '../components/PlayerFleet';
+import CelestialList from '../components/CelestialList';
+import { CelestialBody } from '../services/celestialAPI';
 
-type TabType = 'overview' | 'shipyard' | 'fleet' | 'missions' | 'mines';
+type TabType = 'overview' | 'shipyard' | 'fleet' | 'galaxy' | 'missions' | 'mines';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -23,6 +25,8 @@ const missionIcon = require('../assets/mission.png');
 const minesIcon = require('../assets/mines.png');
 const overviewIcon = require('../assets/overview.png');
 const shipyardIcon = require('../assets/shipyard.png');
+const planetIcon = require('../assets/planet.png'); 
+const planet2Icon = require('../assets/planet2.png'); 
 
 // Aktywna zakładka
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -30,6 +34,8 @@ const shipyardIcon = require('../assets/shipyard.png');
   const [fleetStats, setFleetStats] = useState<FleetStats | null>(null);
 
   const [fleetRefreshTrigger, setFleetRefreshTrigger] = useState(0);
+
+  const [selectedTarget, setSelectedTarget] = useState<CelestialBody | null>(null);
 
   // Funkcja pobierająca zasoby
   const fetchResources = useCallback(async () => {
@@ -77,6 +83,14 @@ const handleShipBuilt = () => {
     fetchFleetStats();
   };
 
+  const handleSelectTarget = (body: CelestialBody) => {
+    setSelectedTarget(body);
+    // TBD - misje i asteroidy
+    console.log('Wybrano cel:', body.name);
+
+    alert(`Wybrano: ${body.name}\n\nSystem misji będzie dostępny wkrótce!`);
+  };
+
   // Mapowanie nazw frakcji na polski
   const factionNames: Record<string, string> = {
     'EU': 'Unia Europejska',
@@ -89,6 +103,7 @@ const handleShipBuilt = () => {
     { id: 'overview', name: 'Przegląd', icon: <img src={overviewIcon} />},
     { id: 'shipyard', name: 'Stocznia', icon: <img src={shipyardIcon} /> },
     { id: 'fleet', name: 'Flota', icon: <img src={fleetIcon} /> },
+    { id: 'galaxy', name: 'Galaktyka', icon: <img src={planetIcon} /> },
     { id: 'missions', name: 'Misje', icon: <img src={missionIcon} />, disabled: true },
     { id: 'mines', name: 'Kopalnie', icon: <img src={minesIcon} />, disabled: true }
   ];
@@ -207,6 +222,27 @@ const handleShipBuilt = () => {
               </button>
             </div>
 
+            {/* Galaktyka */}
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <span><img src={planet2Icon} alt="" className="w-6 h-6" /></span> Układ Słoneczny
+              </h3>
+              <p className="text-gray-400 text-sm">
+                Eksploruj planety i asteroidy. Wysyłaj misje wydobywcze i buduj kopalnie.
+              </p>
+              <div className="mt-3 flex gap-2 text-xs">
+                <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">Planety</span>
+                <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded">Księżyce</span>
+                <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded">Asteroidy</span>
+              </div>
+              <button 
+                onClick={() => setActiveTab('galaxy')}
+                className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Eksploruj galaktykę
+              </button>
+            </div>
+
           {/* Misje */}
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -255,6 +291,14 @@ const handleShipBuilt = () => {
             <PlayerFleet 
               refreshTrigger={fleetRefreshTrigger}
               onFleetChange={handleFleetChange}
+            />
+          </section>
+        )}
+
+        {activeTab === 'galaxy' && (
+          <section>
+            <CelestialList 
+              onSelectTarget={handleSelectTarget}
             />
           </section>
         )}
