@@ -8,6 +8,7 @@ const deleteIcon = require('../assets/deleteShip.png');
 interface PlayerFleetProps {
   refreshTrigger?: number;  // Zmiana tej wartości wymusza odświeżenie
   onFleetChange?: () => void;
+  onSendMission?: (shipId: string) => void;  // Callback do wysyłania misji
 }
 
 // Konfiguracja statusów
@@ -26,7 +27,8 @@ const TIER_CONFIG: Record<number, { color: string; bgColor: string }> = {
 
 const PlayerFleet: React.FC<PlayerFleetProps> = ({ 
   refreshTrigger,
-  onFleetChange 
+  onFleetChange,
+  onSendMission
 }) => {
   const [fleet, setFleet] = useState<PlayerShip[]>([]);
   const [stats, setStats] = useState<FleetStats | null>(null);
@@ -103,6 +105,13 @@ const PlayerFleet: React.FC<PlayerFleetProps> = ({
     } catch (err: any) {
       alert(err.response?.data?.message || 'Błąd usuwania statku');
       setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  // Wyślij statek na misję
+  const handleSendMission = (shipId: string) => {
+    if (onSendMission) {
+      onSendMission(shipId);
     }
   };
 
@@ -240,6 +249,7 @@ const PlayerFleet: React.FC<PlayerFleetProps> = ({
                     {/* Przyciski akcji */}
                     <div className="flex gap-2 pt-2">
                       <button
+                        onClick={() => handleSendMission(ship._id)}
                         disabled={ship.status !== 'idle'}
                         className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                           ship.status === 'idle'
@@ -247,7 +257,7 @@ const PlayerFleet: React.FC<PlayerFleetProps> = ({
                             : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                         }`}
                       >
-                        Wyślij na misję
+                        {ship.status === 'idle' ? 'Wyślij na misję' : 'Na misji...'}
                       </button>
                       <button
                         onClick={() => openDeleteModal(ship)}
@@ -259,7 +269,7 @@ const PlayerFleet: React.FC<PlayerFleetProps> = ({
                         }`}
                         title="Zezłomuj statek"
                       >
-                        <img src={deleteIcon} alt="" className="w-10 h-10" />
+                        <img src={deleteIcon} alt="" className="w-5 h-5" />
                       </button>
                     </div>
                   </div>

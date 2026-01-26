@@ -7,9 +7,8 @@ import PlayerFleet from '../components/PlayerFleet';
 import CelestialList from '../components/CelestialList';
 import { CelestialBody } from '../services/celestialAPI';
 import MissionList from '../components/MissionList';
-import MineList from '../components/MineList';
+import SendMissionModal from '../components/SendMissionModal';
 import missionAPI, { MissionStats } from '../services/missionAPI';
-import { minesAPI, MineStats } from '../services/minesAPI';
 
 type TabType = 'overview' | 'shipyard' | 'fleet' | 'galaxy' | 'missions' | 'mines';
 
@@ -25,30 +24,36 @@ const Dashboard: React.FC = () => {
 
   //ikonki
   const fleetIcon = require('../assets/fleet.png');
-const missionIcon = require('../assets/mission.png');
-const minesIcon = require('../assets/mines.png');
-const overviewIcon = require('../assets/overview.png');
-const shipyardIcon = require('../assets/shipyard.png');
-const planetIcon = require('../assets/planet.png'); 
-const planet2Icon = require('../assets/planet2.png'); 
-const extractIcon = require('../assets/extraction.png');
-const progressIcon = require('../assets/in_progress.png');
-const returnIcon = require('../assets/return.png');
-const finishIcon = require('../assets/finish.png');
-const receivedIcon = require('../assets/received.png');
+  const missionIcon = require('../assets/mission.png');
+  const minesIcon = require('../assets/mines.png');
+  const overviewIcon = require('../assets/overview.png');
+  const shipyardIcon = require('../assets/shipyard.png');
+  const planetIcon = require('../assets/planet.png'); 
+  const planet2Icon = require('../assets/planet2.png'); 
+  const extractIcon = require('../assets/extraction.png');
+  const progressIcon = require('../assets/in_progress.png');
+  const returnIcon = require('../assets/return.png');
+  const finishIcon = require('../assets/finish.png');
 
-// Aktywna zakładka
+  // Aktywna zakładka
   const [activeTab, setActiveTab] = useState<TabType>('overview');
 
   const [fleetStats, setFleetStats] = useState<FleetStats | null>(null);
-   const [missionStats, setMissionStats] = useState<MissionStats | null>(null);
-   const [mineStats, setMineStats] = useState<MineStats | null>(null);
+  const [missionStats, setMissionStats] = useState<MissionStats | null>(null);
 
   const [fleetRefreshTrigger, setFleetRefreshTrigger] = useState(0);
-   const [missionRefreshTrigger, setMissionRefreshTrigger] = useState(0);
-   const [mineRefreshTrigger, setMineRefreshTrigger] = useState(0);
+  const [missionRefreshTrigger, setMissionRefreshTrigger] = useState(0);
 
   const [selectedTarget, setSelectedTarget] = useState<CelestialBody | null>(null);
+
+  // Stan modalu wysyłania misji
+  const [sendMissionModal, setSendMissionModal] = useState<{
+    isOpen: boolean;
+    preselectedShipId?: string;
+    preselectedTargetId?: string;
+  }>({
+    isOpen: false
+  });
 
   // Funkcja pobierająca zasoby
   const fetchResources = useCallback(async () => {
@@ -88,22 +93,14 @@ const receivedIcon = require('../assets/received.png');
     }
   }, []);
 
-  const fetchMineStats = useCallback(async () => {
-    try {
-      const response = await minesAPI.getAll();
-      setMineStats(response.data.data.stats);
-    } catch (err) {
-      console.error('Błąd pobierania statystyk kopalni:', err);
-    }
-  }, []);
-
   // Pobierz zasoby przy montowaniu komponentu
   useEffect(() => {
     fetchResources();
     fetchFleetStats();
-  }, [fetchResources, fetchFleetStats]);
+    fetchMissionStats();
+  }, [fetchResources, fetchFleetStats, fetchMissionStats]);
 
-const handleShipBuilt = () => {
+  const handleShipBuilt = () => {
     fetchResources();
     fetchFleetStats();
     setFleetRefreshTrigger(prev => prev + 1);
@@ -121,27 +118,41 @@ const handleShipBuilt = () => {
     setFleetRefreshTrigger(prev => prev + 1);
   };
 
-  const handleMineBuilt = () => {
-    fetchResources();
-    fetchMineStats();
-    setMineRefreshTrigger(prev => prev + 1);
-  };
-
-  const handleMineResourcesCollected = () => {
-    fetchResources();
-    fetchMineStats();
-  };
-
+  // Otwórz modal wysyłania misji z wybranym celem (z galaktyki)
   const handleSelectTarget = (body: CelestialBody) => {
     setSelectedTarget(body);
     
-    // Jeśli to asteroida, przejdź do zakładki misji
     if (body.isTemporary) {
-      // TODO: Otwórz modal wysyłania misji
-      alert(`Wybrano asteroidę: ${body.name}\n\nAby wysłać misję, przejdź do zakładki "Misje" (funkcja w przygotowaniu)`);
+      // Otwórz modal z preselected target
+      setSendMissionModal({
+        isOpen: true,
+        preselectedTargetId: body._id
+      });
     } else {
       alert(`Wybrano: ${body.name}\n\nSystem kopalni będzie dostępny wkrótce!`);
     }
+  };
+
+  // Otwórz modal wysyłania misji z wybranym statkiem (z floty)
+  const handleSendShipOnMission = (shipId: string) => {
+    setSendMissionModal({
+      isOpen: true,
+      preselectedShipId: shipId
+    });
+  };
+
+  // Zamknij modal wysyłania misji
+  const handleCloseSendMissionModal = () => {
+    setSendMissionModal({ isOpen: false });
+  };
+
+  // Po wysłaniu misji
+  const handleMissionSent = () => {
+    fetchResources();
+    fetchFleetStats();
+    fetchMissionStats();
+    setFleetRefreshTrigger(prev => prev + 1);
+    setMissionRefreshTrigger(prev => prev + 1);
   };
 
   // Mapowanie nazw frakcji na polski
@@ -152,26 +163,18 @@ const handleShipBuilt = () => {
     'JAPONIA': 'Japonia'
   };
 
-   const tabs: { id: TabType; name: string; icon: any; disabled?: boolean }[] = [
-    { id: 'overview', name: 'Przegląd', icon: <img src={overviewIcon} />},
-    { id: 'shipyard', name: 'Stocznia', icon: <img src={shipyardIcon} /> },
-    { id: 'fleet', name: 'Flota', icon: <img src={fleetIcon} /> },
-    { id: 'galaxy', name: 'Galaktyka', icon: <img src={planetIcon} /> },
-    { id: 'missions', name: 'Misje', icon: <img src={missionIcon} />, disabled: true },
-    { id: 'mines', name: 'Kopalnie', icon: <img src={minesIcon} />, disabled: true }
+  const tabs: { id: TabType; name: string; icon: any; disabled?: boolean }[] = [
+    { id: 'overview', name: 'Przegląd', icon: <img src={overviewIcon} alt="" className="w-5 h-5" />},
+    { id: 'shipyard', name: 'Stocznia', icon: <img src={shipyardIcon} alt="" className="w-5 h-5" /> },
+    { id: 'fleet', name: 'Flota', icon: <img src={fleetIcon} alt="" className="w-5 h-5" /> },
+    { id: 'galaxy', name: 'Galaktyka', icon: <img src={planetIcon} alt="" className="w-5 h-5" /> },
+    { id: 'missions', name: 'Misje', icon: <img src={missionIcon} alt="" className="w-5 h-5" /> },
+    { id: 'mines', name: 'Kopalnie', icon: <img src={minesIcon} alt="" className="w-5 h-5" />, disabled: true }
   ];
 
   const activeMissionsCount = missionStats 
     ? missionStats.inProgress + missionStats.mining + missionStats.returning 
     : 0;
-
-    // Sprawdź czy są zasoby do zebrania z kopalni
-  const hasMinesToCollect = mineStats && (
-    mineStats.totalAccumulated.iron > 0 ||
-    mineStats.totalAccumulated.rareMetals > 0 ||
-    mineStats.totalAccumulated.crystals > 0 ||
-    mineStats.totalAccumulated.fuel > 0
-  );
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -218,7 +221,7 @@ const handleShipBuilt = () => {
                       : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
                 }`}
               >
-                <img src={tab.icon} alt="" className="w-5 h-5 opacity-70" />
+                {tab.icon}
                 {tab.name}
                 {tab.disabled && <span className="text-xs text-gray-600">(wkrótce)</span>}
               </button>
@@ -254,14 +257,14 @@ const handleShipBuilt = () => {
         </section>
 
         {/*Zakładka */}
-          {activeTab === 'overview' && (
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Statki */}
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span><img src={fleetIcon} alt="" className="w-6 h-6" /></span> Twoja flota
-            </h3>
-            {fleetStats && fleetStats.totalShips > 0 ? (
+        {activeTab === 'overview' && (
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Statki */}
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <img src={fleetIcon} alt="" className="w-6 h-6" /> Twoja flota
+              </h3>
+              {fleetStats && fleetStats.totalShips > 0 ? (
                 <div className="space-y-2">
                   <p className="text-gray-300">
                     Posiadasz <span className="text-white font-bold">{fleetStats.totalShips}</span> statków
@@ -289,7 +292,7 @@ const handleShipBuilt = () => {
             {/* Galaktyka */}
             <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <span><img src={planet2Icon} alt="" className="w-6 h-6" /></span> Układ Słoneczny
+                <img src={planet2Icon} alt="" className="w-6 h-6" /> Układ Słoneczny
               </h3>
               <p className="text-gray-400 text-sm">
                 Eksploruj planety i asteroidy. Wysyłaj misje wydobywcze i buduj kopalnie.
@@ -307,8 +310,8 @@ const handleShipBuilt = () => {
               </button>
             </div>
 
-          {/* Misje */}
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+            {/* Misje */}
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <img src={missionIcon} alt="" className="w-6 h-6" /> Aktywne misje
               </h3>
@@ -319,18 +322,24 @@ const handleShipBuilt = () => {
                   </p>
                   <div className="text-gray-400 text-sm space-y-1">
                     {missionStats.inProgress > 0 && (
-                      <p><img src={progressIcon} alt="" className="w-6 h-6" /> W drodze: {missionStats.inProgress}</p>
+                      <p className="flex items-center gap-1">
+                        <img src={progressIcon} alt="" className="w-4 h-4" /> W drodze: {missionStats.inProgress}
+                      </p>
                     )}
                     {missionStats.mining > 0 && (
-                      <p><img src={extractIcon} alt="" className="w-6 h-6" /> Wydobycie: {missionStats.mining}</p>
+                      <p className="flex items-center gap-1">
+                        <img src={extractIcon} alt="" className="w-4 h-4" /> Wydobycie: {missionStats.mining}
+                      </p>
                     )}
                     {missionStats.returning > 0 && (
-                      <p><img src={returnIcon} alt="" className="w-6 h-6" /> Powrót: {missionStats.returning}</p>
+                      <p className="flex items-center gap-1">
+                        <img src={returnIcon} alt="" className="w-4 h-4" /> Powrót: {missionStats.returning}
+                      </p>
                     )}
                   </div>
                   {missionStats.readyToCollect > 0 && (
-                    <p className="text-green-400 font-medium animate-pulse">
-                      <img src={finishIcon} alt="" className="w-6 h-6" /> {missionStats.readyToCollect} do odebrania!
+                    <p className="text-green-400 font-medium animate-pulse flex items-center gap-1">
+                      <img src={finishIcon} alt="" className="w-4 h-4" /> {missionStats.readyToCollect} do odebrania!
                     </p>
                   )}
                 </div>
@@ -351,50 +360,48 @@ const handleShipBuilt = () => {
               </button>
             </div>
 
-          {/* Kopalnie */}
-          <div className={`bg-gray-800 border rounded-xl p-6 ${
-              hasMinesToCollect ? 'border-green-500/30' : 'border-gray-700'
-            }`}>
+            {/* Kopalnie */}
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <img src={minesIcon} alt="" className="w-6 h-6" /> Kopalnie
               </h3>
-              {mineStats && mineStats.totalMines > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-gray-300">
-                    Posiadasz <span className="text-white font-bold">{mineStats.totalMines}</span> kopalni
-                  </p>
-                  <p className="text-gray-400 text-sm">
-                    Produkcja/h: {mineStats.totalProductionPerHour.iron + 
-                                 mineStats.totalProductionPerHour.rareMetals + 
-                                 mineStats.totalProductionPerHour.crystals + 
-                                 mineStats.totalProductionPerHour.fuel} surowców
-                  </p>
-                  {hasMinesToCollect && (
-                    <p className="text-green-400 font-medium animate-pulse">
-                      <img src={receivedIcon} /> Zasoby gotowe do odbioru!
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-gray-400 text-sm">
-                  Brak kopalni. Zbuduj kopalnie na planetach aby pasywnie zbierać surowce!
-                </p>
-              )}
+              <p className="text-gray-400 text-sm">
+                Brak kopalni. Zbuduj kopalnie na planetach aby pasywnie zbierać surowce!
+              </p>
               <button 
-                onClick={() => setActiveTab('mines')}
-                className={`mt-4 w-full py-2 rounded-lg transition-colors ${
-                  hasMinesToCollect
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                disabled
+                className="mt-4 w-full py-2 bg-gray-700 text-gray-500 rounded-lg cursor-not-allowed"
+              >
+                Mapa galaktyki (wkrótce)
+              </button>
+            </div>
+
+            {/* Szybka akcja - wyślij misję */}
+            <div className="bg-gradient-to-br from-blue-900/50 to-purple-900/50 border border-blue-500/30 rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                🚀 Szybka akcja
+              </h3>
+              <p className="text-gray-300 text-sm mb-4">
+                Wyślij statek na misję wydobywczą do najbliższej asteroidy.
+              </p>
+              <button 
+                onClick={() => setSendMissionModal({ isOpen: true })}
+                disabled={!fleetStats || fleetStats.idleShips === 0}
+                className={`w-full py-2 rounded-lg transition-colors font-medium ${
+                  fleetStats && fleetStats.idleShips > 0
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {hasMinesToCollect ? 'Zbierz zasoby!' : 'Zarządzaj kopalniami'}
+                {fleetStats && fleetStats.idleShips > 0 
+                  ? 'Wyślij misję' 
+                  : 'Brak dostępnych statków'}
               </button>
             </div>
           </section>
         )}
 
-          {activeTab === 'shipyard' && (
+        {activeTab === 'shipyard' && (
           <section>
             <ShipTemplateList 
               playerResources={resources || undefined}
@@ -408,6 +415,7 @@ const handleShipBuilt = () => {
             <PlayerFleet 
               refreshTrigger={fleetRefreshTrigger}
               onFleetChange={handleFleetChange}
+              onSendMission={handleSendShipOnMission}
             />
           </section>
         )}
@@ -420,24 +428,33 @@ const handleShipBuilt = () => {
           </section>
         )}
 
-         {activeTab === 'missions' && (
+        {activeTab === 'missions' && (
           <section>
             <MissionList 
               refreshTrigger={missionRefreshTrigger}
               onMissionComplete={handleMissionComplete}
+              onResourcesCollected={fetchResources}
             />
           </section>
         )}
 
         {activeTab === 'mines' && (
-          <section>
-            <MineList 
-              refreshTrigger={mineRefreshTrigger}
-              onResourcesCollected={handleMineResourcesCollected}
-            />
+          <section className="text-center py-12">
+            <img src={minesIcon} alt="" className="w-16 h-16 mx-auto opacity-50 mb-4" />
+            <h2 className="mt-4 text-xl font-semibold">System kopalni</h2>
+            <p className="text-gray-400 mt-2">Ta funkcja będzie dostępna wkrótce!</p>
           </section>
         )}
       </main>
+
+      {/* Modal wysyłania misji */}
+      <SendMissionModal
+        isOpen={sendMissionModal.isOpen}
+        onClose={handleCloseSendMissionModal}
+        onMissionSent={handleMissionSent}
+        preselectedShipId={sendMissionModal.preselectedShipId}
+        preselectedTargetId={sendMissionModal.preselectedTargetId}
+      />
     </div>
   );
 };
