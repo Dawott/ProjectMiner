@@ -7,7 +7,9 @@ import PlayerFleet from '../components/PlayerFleet';
 import CelestialList from '../components/CelestialList';
 import { CelestialBody } from '../services/celestialAPI';
 import MissionList from '../components/MissionList';
+import MineList from '../components/MineList';
 import missionAPI, { MissionStats } from '../services/missionAPI';
+import { minesAPI, MineStats } from '../services/minesAPI';
 
 type TabType = 'overview' | 'shipyard' | 'fleet' | 'galaxy' | 'missions' | 'mines';
 
@@ -40,9 +42,11 @@ const receivedIcon = require('../assets/received.png');
 
   const [fleetStats, setFleetStats] = useState<FleetStats | null>(null);
    const [missionStats, setMissionStats] = useState<MissionStats | null>(null);
+   const [mineStats, setMineStats] = useState<MineStats | null>(null);
 
   const [fleetRefreshTrigger, setFleetRefreshTrigger] = useState(0);
    const [missionRefreshTrigger, setMissionRefreshTrigger] = useState(0);
+   const [mineRefreshTrigger, setMineRefreshTrigger] = useState(0);
 
   const [selectedTarget, setSelectedTarget] = useState<CelestialBody | null>(null);
 
@@ -84,6 +88,15 @@ const receivedIcon = require('../assets/received.png');
     }
   }, []);
 
+  const fetchMineStats = useCallback(async () => {
+    try {
+      const response = await minesAPI.getAll();
+      setMineStats(response.data.data.stats);
+    } catch (err) {
+      console.error('Błąd pobierania statystyk kopalni:', err);
+    }
+  }, []);
+
   // Pobierz zasoby przy montowaniu komponentu
   useEffect(() => {
     fetchResources();
@@ -106,6 +119,17 @@ const handleShipBuilt = () => {
     fetchFleetStats();
     fetchMissionStats();
     setFleetRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleMineBuilt = () => {
+    fetchResources();
+    fetchMineStats();
+    setMineRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleMineResourcesCollected = () => {
+    fetchResources();
+    fetchMineStats();
   };
 
   const handleSelectTarget = (body: CelestialBody) => {
@@ -140,6 +164,14 @@ const handleShipBuilt = () => {
   const activeMissionsCount = missionStats 
     ? missionStats.inProgress + missionStats.mining + missionStats.returning 
     : 0;
+
+    // Sprawdź czy są zasoby do zebrania z kopalni
+  const hasMinesToCollect = mineStats && (
+    mineStats.totalAccumulated.iron > 0 ||
+    mineStats.totalAccumulated.rareMetals > 0 ||
+    mineStats.totalAccumulated.crystals > 0 ||
+    mineStats.totalAccumulated.fuel > 0
+  );
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -320,22 +352,47 @@ const handleShipBuilt = () => {
             </div>
 
           {/* Kopalnie */}
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <img src={minesIcon} alt="" className="w-6 h-6" /> Kopalnie
-            </h3>
-            <p className="text-gray-400 text-sm">
-              Brak kopalni. Zbuduj kopalnie na planetach aby pasywnie zbierać surowce!
-            </p>
-            <button 
-              disabled
-              className="mt-4 w-full py-2 bg-gray-700 text-gray-500 rounded-lg cursor-not-allowed"
-            >
-              Mapa galaktyki (wkrótce)
-            </button>
-          </div>
-        </section>
-          )}
+          <div className={`bg-gray-800 border rounded-xl p-6 ${
+              hasMinesToCollect ? 'border-green-500/30' : 'border-gray-700'
+            }`}>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <img src={minesIcon} alt="" className="w-6 h-6" /> Kopalnie
+              </h3>
+              {mineStats && mineStats.totalMines > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-gray-300">
+                    Posiadasz <span className="text-white font-bold">{mineStats.totalMines}</span> kopalni
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Produkcja/h: {mineStats.totalProductionPerHour.iron + 
+                                 mineStats.totalProductionPerHour.rareMetals + 
+                                 mineStats.totalProductionPerHour.crystals + 
+                                 mineStats.totalProductionPerHour.fuel} surowców
+                  </p>
+                  {hasMinesToCollect && (
+                    <p className="text-green-400 font-medium animate-pulse">
+                      <img src={receivedIcon} /> Zasoby gotowe do odbioru!
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm">
+                  Brak kopalni. Zbuduj kopalnie na planetach aby pasywnie zbierać surowce!
+                </p>
+              )}
+              <button 
+                onClick={() => setActiveTab('mines')}
+                className={`mt-4 w-full py-2 rounded-lg transition-colors ${
+                  hasMinesToCollect
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+              >
+                {hasMinesToCollect ? 'Zbierz zasoby!' : 'Zarządzaj kopalniami'}
+              </button>
+            </div>
+          </section>
+        )}
 
           {activeTab === 'shipyard' && (
           <section>
@@ -373,10 +430,11 @@ const handleShipBuilt = () => {
         )}
 
         {activeTab === 'mines' && (
-          <section className="text-center py-12">
-            <img src={minesIcon} alt="" className="w-16 h-16 mx-auto opacity-50 mb-4" />
-            <h2 className="mt-4 text-xl font-semibold">System kopalni</h2>
-            <p className="text-gray-400 mt-2">Ta funkcja będzie dostępna wkrótce!</p>
+          <section>
+            <MineList 
+              refreshTrigger={mineRefreshTrigger}
+              onResourcesCollected={handleMineResourcesCollected}
+            />
           </section>
         )}
       </main>

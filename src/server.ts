@@ -7,6 +7,7 @@ import resourceRoutes from './routes/resources'
 import shipRoutes from './routes/ships';
 import celestialRoutes from './routes/celestial';
 import missionRoutes from './routes/missions';
+import mineRoutes from './routes/mines';
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/ships', shipRoutes);
 app.use('/api/celestial', celestialRoutes);
 app.use('/api/missions', missionRoutes);
+app.use('/api/mines', mineRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
